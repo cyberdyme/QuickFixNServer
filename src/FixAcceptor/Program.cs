@@ -6,6 +6,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 
+// Anchor cwd to the deployed binary so QuickFIX/n resolves DataDictionary/FileStorePath/FileLogPath
+// (all relative in server.cfg) regardless of where the process was launched from.
+Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddSingleton<ISessionSettingsProvider, SessionSettingsProvider>();
@@ -21,12 +25,22 @@ builder.Logging.AddSimpleConsole(options =>
     options.ColorBehavior = LoggerColorBehavior.Disabled;
 });
 
-// Set background color to purple
-Console.BackgroundColor = ConsoleColor.Magenta; // Closest to purple
+try
+{
+    Console.BackgroundColor = ConsoleColor.Magenta;
+    Console.Clear();
+}
+catch (IOException)
+{
+    // No console buffer attached (headless run, redirected output) — skip cosmetics.
+}
+Console.WriteLine("******** FIX Server ****************");
 
-// Clear the console to apply the color to the entire screen
-Console.Clear();
-Console.WriteLine("******** FIX Client ****************");
+Console.WriteLine($" Using QuickFIX/n version: {typeof(QuickFix.Session).Assembly.GetName().Version}");
+Console.WriteLine($" Using directory: {AppContext.BaseDirectory}");
+Console.WriteLine($" Using directory executions : {Path.Combine(AppContext.BaseDirectory, "executions")}");
+Console.WriteLine($" Using directory processed  : {Path.Combine(AppContext.BaseDirectory, "executions", "processed")}");
+
 
 var app = builder.Build();
 app.Run();

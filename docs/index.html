@@ -646,6 +646,11 @@ public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
     <section id="execution-file-format">
       <h2>Execution File Format</h2>
       <p>Drop a UTF-8 text file into <code>executions/</code>. The file watcher's glob is <code>*.json</code> for historical reasons, but the file contents are <strong>raw FIX messages — one per line</strong>, not JSON. Use the <code>.json</code> extension so the watcher picks the file up.</p>
+      <p>A ready-to-use sample lives at <code>docs/samples/sample-execution-reports.json</code> (three pipe-delimited FIX 4.4 <code>ExecutionReport</code>s — an AAPL fill, an MSFT fill, and a GOOG partial fill). Copy it into the watch directory to test:</p>
+      <div class="code-block">
+        <div class="code-header"><span>powershell</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="shell">copy docs\samples\sample-execution-reports.json src\FixAcceptor\bin\Debug\net9.0\executions\</code></pre>
+      </div>
       <p>Each non-blank line is parsed into a <code>QuickFix.Message</code> and forwarded to every logged-on session via <code>Session.SendToTarget</code>. The engine rewrites the session-managed headers (<code>BeginString</code>, <code>SenderCompID</code>, <code>TargetCompID</code>, <code>MsgSeqNum</code>, <code>SendingTime</code>) and recomputes <code>BodyLength</code> / <code>CheckSum</code> before sending, so the values in your file for those tags are advisory at best.</p>
       <div class="code-block">
         <div class="code-header"><span>executions/sample.json (pipe-delimited)</span><button class="copy-btn" type="button">Copy</button></div>
@@ -740,7 +745,9 @@ QuickFixNServer/
 │   └── FIX44.xml                (linked into FixAcceptor build output)
 ├── docs/
 │   ├── index.html               this document
-│   └── client.cfg               sample QuickFIX/n initiator config
+│   ├── client.cfg               sample QuickFIX/n initiator config
+│   └── samples/
+│       └── sample-execution-reports.json   raw FIX ExecutionReports for the watcher
 ├── src/
 │   └── FixAcceptor/
 │       ├── Program.cs           host bootstrap + DI registration

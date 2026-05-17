@@ -4,6 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FixAcceptor — QuickFIX/n FIX 4.4 Server Documentation</title>
+<script>
+  // Apply saved theme before render to avoid a flash. No-op if storage is blocked.
+  (function () {
+    try {
+      var saved = localStorage.getItem('theme');
+      if (saved === 'dark' || saved === 'light') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (e) { /* ignored */ }
+  })();
+</script>
 <style>
   :root {
     --bg: #ffffff;
@@ -24,8 +35,9 @@
     --fn: #953800;
     --punct: #1f2328;
   }
+  /* Dark palette applies when system prefers dark (and user hasn't forced light), OR user picked dark. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0d1117;
       --bg-elev: #161b22;
       --bg-code: #161b22;
@@ -44,6 +56,25 @@
       --fn: #ffa657;
       --punct: #e6edf3;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-code: #161b22;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --border: #30363d;
+    --border-strong: #484f58;
+    --accent: #58a6ff;
+    --accent-fg: #0d1117;
+    --selection: #264f78;
+    --kw: #ff7b72;
+    --str: #a5d6ff;
+    --num: #79c0ff;
+    --com: #8b949e;
+    --type: #d2a8ff;
+    --fn: #ffa657;
+    --punct: #e6edf3;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -85,6 +116,11 @@
     border-radius: 999px;
     background: var(--bg-elev);
   }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .toc-toggle {
     display: none;
     background: var(--bg-elev);
@@ -95,6 +131,30 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-elev);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-toggle .icon { width: 16px; height: 16px; }
+  /* Show moon in light mode, sun in dark mode. */
+  .theme-toggle .icon-sun { display: none; }
+  .theme-toggle .icon-moon { display: inline; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: inline; }
+    :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
+  }
+  :root[data-theme="dark"] .theme-toggle .icon-sun { display: inline; }
+  :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: inline; }
 
   .layout {
     display: grid;
@@ -318,7 +378,18 @@
 
 <header class="site-header">
   <h1>FixAcceptor <span class="tag">FIX 4.4 / .NET 9</span></h1>
-  <button class="toc-toggle" id="toc-toggle" aria-label="Toggle table of contents">Contents</button>
+  <div class="header-actions">
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle theme">
+      <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+      <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="toc-toggle" id="toc-toggle" aria-label="Toggle table of contents">Contents</button>
+  </div>
 </header>
 
 <div class="layout">
@@ -889,6 +960,19 @@ QuickFixNServer/
     ta.select();
     try { document.execCommand('copy'); } catch (e) { /* ignore */ }
     document.body.removeChild(ta);
+  }
+
+  // ---------- theme toggle ----------
+  var themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      var current = document.documentElement.getAttribute('data-theme');
+      var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var effective = current || (systemDark ? 'dark' : 'light');
+      var next = effective === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('theme', next); } catch (e) { /* ignored */ }
+    });
   }
 
   // ---------- mobile TOC toggle ----------

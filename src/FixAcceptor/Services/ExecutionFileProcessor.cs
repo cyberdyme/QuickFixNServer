@@ -1,8 +1,5 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using QuickFix;
-using QuickFix.Fields;
-using FixAcceptor.Models;
 
 namespace FixAcceptor.Services;
 
@@ -10,11 +7,6 @@ public class ExecutionFileProcessor : IExecutionFileProcessor
 {
     private readonly ISessionRegistry _sessionRegistry;
     private readonly ILogger<ExecutionFileProcessor> _logger;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
 
     public ExecutionFileProcessor(
         ISessionRegistry sessionRegistry,
@@ -28,10 +20,10 @@ public class ExecutionFileProcessor : IExecutionFileProcessor
     {
         _logger.LogInformation("Reading execution file: {FilePath}", filePath);
 
-        string json;
+        string[] lines;
         try
         {
-            json = await File.ReadAllTextAsync(filePath, cancellationToken);
+            lines = await File.ReadAllLinesAsync(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -39,20 +31,14 @@ public class ExecutionFileProcessor : IExecutionFileProcessor
             throw;
         }
 
-        ExecutionData[]? executions;
-        try
-        {
-            executions = JsonSerializer.Deserialize<ExecutionData[]>(json, JsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogError(ex, "Failed to parse JSON from {FilePath}", filePath);
-            throw;
-        }
+        var messages = lines
+            .Select(NormalizeFixLine)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
 
-        if (executions is null || executions.Length == 0)
+        if (messages.Length == 0)
         {
-            _logger.LogWarning("File {FilePath} contains no executions", filePath);
+            _logger.LogWarning("File {FilePath} contains no FIX messages", filePath);
             return;
         }
 
@@ -60,109 +46,57 @@ public class ExecutionFileProcessor : IExecutionFileProcessor
         if (activeSessions.Count == 0)
         {
             _logger.LogWarning(
-                "File {FilePath} contains {Count} execution(s) but no sessions are logged on. Executions will not be sent.",
-                filePath, executions.Length);
+                "File {FilePath} contains {Count} message(s) but no sessions are logged on. Messages will not be sent.",
+                filePath, messages.Length);
             return;
         }
 
         _logger.LogInformation(
-            "Processing {Count} execution(s) from {FilePath} for {SessionCount} active session(s)",
-            executions.Length, filePath, activeSessions.Count);
+            "Processing {Count} FIX message(s) from {FilePath} for {SessionCount} active session(s)",
+            messages.Length, filePath, activeSessions.Count);
 
-        foreach (var exec in executions)
+        foreach (var raw in messages)
         {
-            if (!ValidateExecution(exec, out var validationError))
+            Message parsed;
+            try
             {
-                _logger.LogError("Invalid execution in {FilePath}: {Error}", filePath, validationError);
+                // validate=false: BodyLength/CheckSum are recalculated by the engine on send,
+                // so stale values in hand-rolled or replayed files don't reject the message.
+                parsed = new Message(raw, validate: false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse FIX message from {FilePath}: {Raw}", filePath, raw);
                 continue;
             }
-
-            var side = ConvertSide(exec.Side);
-            var price = exec.Price ?? 100m;
-
-            var execReport = BuildExecutionReportWithPrice(
-                exec.ClOrdID, exec.Symbol, side, exec.OrderQty, price);
 
             foreach (var sessionId in activeSessions)
             {
                 try
                 {
-                    Session.SendToTarget(execReport, sessionId);
-                    _logger.LogInformation(
-                        "Sent ExecutionReport to {SessionId}: ClOrdID={ClOrdID}, Symbol={Symbol}, OrderID={OrderID}",
-                        sessionId, exec.ClOrdID, exec.Symbol, execReport.OrderID.Value);
+                    if (Session.SendToTarget(parsed, sessionId))
+                    {
+                        _logger.LogInformation("Sent FIX message to {SessionId}", sessionId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Session {SessionId} refused to send message", sessionId);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex,
-                        "Failed to send ExecutionReport to {SessionId} for ClOrdID={ClOrdID}",
-                        sessionId, exec.ClOrdID);
+                    _logger.LogError(ex, "Failed to send FIX message to {SessionId}", sessionId);
                 }
             }
         }
     }
 
-    public static bool ValidateExecution(ExecutionData exec, out string error)
+    // Accept pipe-delimited FIX dumps as a friendlier alternative to wire-format SOH.
+    public static string NormalizeFixLine(string line)
     {
-        if (string.IsNullOrWhiteSpace(exec.ClOrdID))
-        {
-            error = "ClOrdID is required";
-            return false;
-        }
-        if (string.IsNullOrWhiteSpace(exec.Symbol))
-        {
-            error = "Symbol is required";
-            return false;
-        }
-        if (exec.OrderQty <= 0)
-        {
-            error = $"OrderQty must be positive, got: {exec.OrderQty}";
-            return false;
-        }
-        if (!exec.Side.Equals("BUY", StringComparison.OrdinalIgnoreCase) &&
-            !exec.Side.Equals("SELL", StringComparison.OrdinalIgnoreCase))
-        {
-            error = $"Side must be BUY or SELL, got: {exec.Side}";
-            return false;
-        }
-        if (exec.Price.HasValue && exec.Price.Value <= 0)
-        {
-            error = $"Price must be positive if provided, got: {exec.Price}";
-            return false;
-        }
-
-        error = string.Empty;
-        return true;
-    }
-
-    public static char ConvertSide(string side)
-    {
-        return side.Equals("BUY", StringComparison.OrdinalIgnoreCase)
-            ? Side.BUY
-            : Side.SELL;
-    }
-
-    public static QuickFix.FIX44.ExecutionReport BuildExecutionReportWithPrice(
-        string clOrdId, string symbol, char side, decimal orderQty, decimal price)
-    {
-        var orderId = Guid.NewGuid().ToString("N");
-        var execId = Guid.NewGuid().ToString("N");
-
-        var execReport = new QuickFix.FIX44.ExecutionReport(
-            new OrderID(orderId),
-            new ExecID(execId),
-            new ExecType(ExecType.FILL),
-            new OrdStatus(OrdStatus.FILLED),
-            new Symbol(symbol),
-            new Side(side),
-            new LeavesQty(0m),
-            new CumQty(orderQty),
-            new AvgPx(price));
-
-        execReport.Set(new ClOrdID(clOrdId));
-        execReport.Set(new LastQty(orderQty));
-        execReport.Set(new LastPx(price));
-
-        return execReport;
+        if (string.IsNullOrEmpty(line)) return line;
+        return line.Contains('|') && !line.Contains('\x01')
+            ? line.Replace('|', '\x01')
+            : line;
     }
 }

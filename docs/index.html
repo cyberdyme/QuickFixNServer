@@ -368,14 +368,14 @@
 
   <main>
     <h1>FixAcceptor</h1>
-    <p class="lede">A minimal QuickFIX/n based FIX 4.4 acceptor (server) built on the .NET Generic Host. Accepts client connections on TCP <code>5001</code>, auto-fills incoming <code>NewOrderSingle</code> orders, and can broadcast <code>ExecutionReport</code> messages to all logged-on sessions from JSON files dropped into a watched directory.</p>
+    <p class="lede">A minimal QuickFIX/n based FIX 4.4 acceptor (server) built on the .NET Generic Host. Accepts client connections on TCP <code>5001</code>, auto-fills incoming <code>NewOrderSingle</code> orders, and broadcasts raw FIX messages to all logged-on sessions from text files dropped into a watched directory (one FIX message per line).</p>
 
     <section id="overview">
       <h2>Overview</h2>
       <p>FixAcceptor is a lightweight FIX engine harness intended for development, testing, and integration scenarios where you need a predictable server-side counterparty to a FIX initiator (client). It demonstrates two common patterns at once:</p>
       <ul>
         <li><strong>Synchronous echo</strong> — incoming <code>NewOrderSingle (35=D)</code> messages are immediately answered with a <code>FILLED</code> <code>ExecutionReport (35=8)</code>.</li>
-        <li><strong>Asynchronous push</strong> — drop a JSON file into the <code>executions/</code> folder and the server broadcasts a corresponding <code>ExecutionReport</code> to every active session.</li>
+        <li><strong>Asynchronous push</strong> — drop a text file of raw FIX messages (one per line) into the <code>executions/</code> folder and the server forwards each one to every active session.</li>
       </ul>
       <p>The project uses <code>Microsoft.Extensions.Hosting</code> with constructor-injected dependencies, keeps protocol concerns in <code>Fix/</code>, and isolates IO-bound work in <code>Services/</code>.</p>
     </section>
@@ -633,49 +633,35 @@ public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
       </div>
 
       <h3 id="file-processor">ExecutionFileProcessor</h3>
-      <p>Reads a JSON array of <code>ExecutionData</code>, validates each record, builds a FIX 4.4 <code>ExecutionReport</code>, and sends it to every active session via <code>Session.SendToTarget</code>.</p>
-      <p>Validation rules (see <code>ValidateExecution</code>):</p>
+      <p>Reads the file as a list of raw FIX messages — one per line — parses each into a <code>QuickFix.Message</code>, and sends it to every active session via <code>Session.SendToTarget</code>. No field-level validation or builder logic: whatever the line contains goes on the wire (after the engine rewrites session-managed headers).</p>
       <ul>
-        <li><code>ClOrdID</code> — required, non-whitespace.</li>
-        <li><code>Symbol</code> — required, non-whitespace.</li>
-        <li><code>OrderQty</code> — strictly positive.</li>
-        <li><code>Side</code> — must equal <code>"BUY"</code> or <code>"SELL"</code> (case-insensitive).</li>
-        <li><code>Price</code> — optional, but must be strictly positive when present. Defaults to <code>100m</code>.</li>
+        <li>Blank and whitespace-only lines are skipped.</li>
+        <li>Pipe-delimited dumps (<code>|</code>) are normalized to wire-format SOH (<code>\x01</code>) before parsing; files already using SOH are passed through unchanged.</li>
+        <li>Messages are parsed with <code>validate: false</code> — stale or missing <code>BodyLength</code> (9) and <code>CheckSum</code> (10) are tolerated because QuickFIX/n recomputes both during serialization.</li>
+        <li>Per-message parse failures are logged and skipped; the remaining lines still go out.</li>
       </ul>
-      <p>If no sessions are logged on, the processor logs a warning and skips the file (the file is still moved to <code>processed/</code> because no exception was thrown — re-drop the file once a client has connected to deliver it).</p>
+      <p>If no sessions are logged on, the processor logs a warning and returns without sending. The file is still moved to <code>processed/</code> because no exception was thrown — re-drop the file once a client has connected to deliver it.</p>
     </section>
 
     <section id="execution-file-format">
       <h2>Execution File Format</h2>
-      <p>Drop a UTF-8 JSON file with a top-level array into <code>executions/</code>. Property names are matched case-insensitively.</p>
+      <p>Drop a UTF-8 text file into <code>executions/</code>. The file watcher's glob is <code>*.json</code> for historical reasons, but the file contents are <strong>raw FIX messages — one per line</strong>, not JSON. Use the <code>.json</code> extension so the watcher picks the file up.</p>
+      <p>Each non-blank line is parsed into a <code>QuickFix.Message</code> and forwarded to every logged-on session via <code>Session.SendToTarget</code>. The engine rewrites the session-managed headers (<code>BeginString</code>, <code>SenderCompID</code>, <code>TargetCompID</code>, <code>MsgSeqNum</code>, <code>SendingTime</code>) and recomputes <code>BodyLength</code> / <code>CheckSum</code> before sending, so the values in your file for those tags are advisory at best.</p>
       <div class="code-block">
-        <div class="code-header"><span>executions/sample.json</span><button class="copy-btn" type="button">Copy</button></div>
-<pre><code data-lang="json">[
-  {
-    "ClOrdID": "ORD-1001",
-    "Symbol": "AAPL",
-    "Side": "BUY",
-    "OrderQty": 100,
-    "Price": 195.42
-  },
-  {
-    "ClOrdID": "ORD-1002",
-    "Symbol": "MSFT",
-    "Side": "SELL",
-    "OrderQty": 50
-  }
-]</code></pre>
+        <div class="code-header"><span>executions/sample.json (pipe-delimited)</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="ini">8=FIX.4.4|9=148|35=8|49=SERVER|56=CLIENT|34=1|52=20260517-12:00:00.000|37=ORDER1|11=ORD-1001|17=EXEC1|150=F|39=2|55=AAPL|54=1|151=0|14=100|6=195.42|31=195.42|32=100|10=000|
+8=FIX.4.4|9=148|35=8|49=SERVER|56=CLIENT|34=2|52=20260517-12:00:00.000|37=ORDER2|11=ORD-1002|17=EXEC2|150=F|39=2|55=MSFT|54=2|151=0|14=50|6=380.10|31=380.10|32=50|10=000|</code></pre>
       </div>
       <table>
         <thead>
-          <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+          <tr><th>Convention</th><th>What it means</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>ClOrdID</code></td><td>string</td><td>yes</td><td>Echoed onto the outgoing ExecutionReport.</td></tr>
-          <tr><td><code>Symbol</code></td><td>string</td><td>yes</td><td>Instrument symbol.</td></tr>
-          <tr><td><code>Side</code></td><td>string</td><td>yes</td><td><code>BUY</code> or <code>SELL</code>, case-insensitive.</td></tr>
-          <tr><td><code>OrderQty</code></td><td>decimal</td><td>yes</td><td>Must be greater than zero.</td></tr>
-          <tr><td><code>Price</code></td><td>decimal?</td><td>no</td><td>Defaults to <code>100</code> when omitted; must be positive if present.</td></tr>
+          <tr><td>One message per line</td><td>The watcher reads the whole file, then iterates lines. Blank and whitespace-only lines are skipped.</td></tr>
+          <tr><td><code>|</code> as separator</td><td>Replaced with the wire-format SOH byte (<code>\x01</code>) before parsing — convenient for hand-editing.</td></tr>
+          <tr><td>SOH already present</td><td>Line is passed through unchanged. Don't mix the two on the same line.</td></tr>
+          <tr><td>Stale tags 9 / 10</td><td>Ignored. <code>BodyLength</code> and <code>CheckSum</code> are recomputed on serialization.</td></tr>
+          <tr><td>Parse failure</td><td>Logged at Error level; the remaining lines in the file still go out.</td></tr>
         </tbody>
       </table>
     </section>
@@ -696,8 +682,8 @@ public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
       <ol>
         <li>Drop <code>my-fills.json</code> into the <code>executions/</code> directory (created on first run, under the build output).</li>
         <li><code>ExecutionFileWatcherService</code> sees the <code>Created</code> event and waits until the file is readable.</li>
-        <li><code>ExecutionFileProcessor</code> deserializes, validates each entry, and builds an <code>ExecutionReport</code> per row.</li>
-        <li>Each report is sent to <em>every</em> session in <code>SessionRegistry</code> via <code>Session.SendToTarget</code>.</li>
+        <li><code>ExecutionFileProcessor</code> reads the file line-by-line, normalizes <code>|</code> to SOH where needed, and parses each line into a <code>QuickFix.Message</code>.</li>
+        <li>Each parsed message is forwarded to <em>every</em> session in <code>SessionRegistry</code> via <code>Session.SendToTarget</code>; QuickFIX/n overwrites session-managed headers and recomputes <code>BodyLength</code> / <code>CheckSum</code> on the wire.</li>
         <li>On success the file is moved to <code>executions/processed/{name}_{yyyyMMdd_HHmmss}.json</code>.</li>
       </ol>
     </section>
@@ -707,7 +693,7 @@ public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
       <p>xUnit tests live under <code>tests/FixAcceptor.Tests/</code> and cover four areas:</p>
       <ul>
         <li><code>ExecutionReportBuilderTests</code> — builder shape, default price, GUID identifiers.</li>
-        <li><code>ExecutionFileProcessorTests</code> — validation rules, side conversion, JSON parsing.</li>
+        <li><code>ExecutionFileProcessorTests</code> — line splitting, blank-line skipping, pipe→SOH normalization, parse-error handling.</li>
         <li><code>FixServerAppTests</code> — logon/logout registration, cracker dispatch.</li>
         <li><code>SessionRegistryTests</code> — concurrent register/unregister behavior.</li>
       </ul>
@@ -733,9 +719,9 @@ public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
             <td>Stop the host and delete the <code>store/</code> directory under the output folder.</td>
           </tr>
           <tr>
-            <td>JSON file dropped but no ExecutionReport sent</td>
-            <td>No active sessions, or validation failed for every row.</td>
-            <td>Check the log — <code>no sessions are logged on</code> or <code>Invalid execution</code> entries appear at WARN/ERROR.</td>
+            <td>File dropped but no message sent</td>
+            <td>No active sessions, or every line failed to parse.</td>
+            <td>Check the log — <code>no sessions are logged on</code> at WARN, or <code>Failed to parse FIX message</code> at ERROR.</td>
           </tr>
           <tr>
             <td>File silently never processed</td>
@@ -763,15 +749,13 @@ QuickFixNServer/
 │       │   └── FixServerApp.cs  IApplication / MessageCracker impl
 │       ├── Infrastructure/
 │       │   └── SessionSettingsProvider.cs
-│       ├── Models/
-│       │   └── ExecutionData.cs JSON payload shape
 │       └── Services/
 │           ├── FixAcceptorHost.cs            hosted ThreadedSocketAcceptor
 │           ├── FixMessageHandler.cs          NewOrderSingle -> ExecutionReport
 │           ├── SessionRegistry.cs            thread-safe SessionID store
 │           ├── ISessionRegistry.cs
 │           ├── ExecutionFileWatcherService.cs FileSystemWatcher host
-│           ├── ExecutionFileProcessor.cs      JSON -> broadcast
+│           ├── ExecutionFileProcessor.cs      raw FIX lines -> broadcast
 │           └── IExecutionFileProcessor.cs
 └── tests/
     └── FixAcceptor.Tests/       xUnit + Moq test suite

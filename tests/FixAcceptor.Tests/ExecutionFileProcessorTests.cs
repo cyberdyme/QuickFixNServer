@@ -1,9 +1,6 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using QuickFix;
-using QuickFix.Fields;
-using FixAcceptor.Models;
 using FixAcceptor.Services;
 
 namespace FixAcceptor.Tests;
@@ -24,36 +21,17 @@ public class ExecutionFileProcessorTests
     #region ProcessFileAsync tests
 
     [Fact]
-    public async Task ProcessFileAsync_ValidJson_NoErrorsLogged()
+    public async Task ProcessFileAsync_EmptyFile_LogsWarning()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
-            var executions = new[]
-            {
-                new ExecutionData
-                {
-                    ClOrdID = "ORD001", Symbol = "AAPL", Side = "BUY",
-                    OrderQty = 100, Price = 150.25m
-                }
-            };
-            await File.WriteAllTextAsync(tempFile, JsonSerializer.Serialize(executions));
+            await File.WriteAllTextAsync(tempFile, "");
 
-            _registryMock.Setup(r => r.GetActiveSessions())
-                .Returns(new List<SessionID> { new("FIX.4.4", "SERVER", "CLIENT") });
-
-            // SendToTarget will fail because no real session exists, but that's caught internally
             await _processor.ProcessFileAsync(tempFile);
 
-            // Verify no validation errors were logged
-            _loggerMock.Verify(
-                l => l.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Invalid execution")),
-                    null,
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Never);
+            VerifyLog(LogLevel.Warning, "contains no FIX messages", Times.Once());
+            _registryMock.Verify(r => r.GetActiveSessions(), Times.Never);
         }
         finally
         {
@@ -62,14 +40,16 @@ public class ExecutionFileProcessorTests
     }
 
     [Fact]
-    public async Task ProcessFileAsync_InvalidJson_ThrowsJsonException()
+    public async Task ProcessFileAsync_OnlyBlankLines_LogsWarning()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
-            await File.WriteAllTextAsync(tempFile, "{ not valid json array ]]]");
+            await File.WriteAllTextAsync(tempFile, "\n   \n\t\n");
 
-            await Assert.ThrowsAsync<JsonException>(() => _processor.ProcessFileAsync(tempFile));
+            await _processor.ProcessFileAsync(tempFile);
+
+            VerifyLog(LogLevel.Warning, "contains no FIX messages", Times.Once());
         }
         finally
         {
@@ -83,28 +63,14 @@ public class ExecutionFileProcessorTests
         var tempFile = Path.GetTempFileName();
         try
         {
-            var executions = new[]
-            {
-                new ExecutionData
-                {
-                    ClOrdID = "ORD001", Symbol = "AAPL", Side = "BUY", OrderQty = 100
-                }
-            };
-            await File.WriteAllTextAsync(tempFile, JsonSerializer.Serialize(executions));
+            await File.WriteAllTextAsync(tempFile, SampleExecutionReport());
 
             _registryMock.Setup(r => r.GetActiveSessions())
                 .Returns(new List<SessionID>());
 
             await _processor.ProcessFileAsync(tempFile);
 
-            _loggerMock.Verify(
-                l => l.Log(
-                    LogLevel.Warning,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("no sessions are logged on")),
-                    null,
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
+            VerifyLog(LogLevel.Warning, "no sessions are logged on", Times.Once());
         }
         finally
         {
@@ -112,37 +78,20 @@ public class ExecutionFileProcessorTests
         }
     }
 
-    [Theory]
-    [InlineData("", "AAPL", "BUY", 100)]      // missing ClOrdID
-    [InlineData("ORD1", "", "BUY", 100)]       // missing Symbol
-    [InlineData("ORD1", "AAPL", "INVALID", 100)] // bad Side
-    [InlineData("ORD1", "AAPL", "BUY", 0)]    // zero qty
-    [InlineData("ORD1", "AAPL", "BUY", -5)]   // negative qty
-    public async Task ProcessFileAsync_InvalidExecution_LogsErrorAndContinues(
-        string clOrdId, string symbol, string side, decimal qty)
+    [Fact]
+    public async Task ProcessFileAsync_MalformedLine_LogsParseError()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
-            var executions = new[]
-            {
-                new ExecutionData { ClOrdID = clOrdId, Symbol = symbol, Side = side, OrderQty = qty }
-            };
-            await File.WriteAllTextAsync(tempFile, JsonSerializer.Serialize(executions));
+            await File.WriteAllTextAsync(tempFile, "this is not a fix message at all");
 
             _registryMock.Setup(r => r.GetActiveSessions())
                 .Returns(new List<SessionID> { new("FIX.4.4", "SERVER", "CLIENT") });
 
             await _processor.ProcessFileAsync(tempFile);
 
-            _loggerMock.Verify(
-                l => l.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Invalid execution")),
-                    null,
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
+            VerifyLog(LogLevel.Error, "Failed to parse FIX message", Times.Once());
         }
         finally
         {
@@ -151,35 +100,26 @@ public class ExecutionFileProcessorTests
     }
 
     [Fact]
-    public async Task ProcessFileAsync_MissingPrice_DefaultsTo100()
+    public async Task ProcessFileAsync_MultipleLines_ParsesEach()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
-            var executions = new[]
-            {
-                new ExecutionData
-                {
-                    ClOrdID = "ORD001", Symbol = "AAPL", Side = "BUY", OrderQty = 100
-                    // Price intentionally omitted → defaults to 100
-                }
-            };
-            await File.WriteAllTextAsync(tempFile, JsonSerializer.Serialize(executions));
+            var content = string.Join("\n",
+                SampleExecutionReport(clOrdId: "ORD1"),
+                "",
+                SampleExecutionReport(clOrdId: "ORD2"),
+                "   ");
+            await File.WriteAllTextAsync(tempFile, content);
 
             _registryMock.Setup(r => r.GetActiveSessions())
                 .Returns(new List<SessionID> { new("FIX.4.4", "SERVER", "CLIENT") });
 
             await _processor.ProcessFileAsync(tempFile);
 
-            // No validation errors
-            _loggerMock.Verify(
-                l => l.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Invalid execution")),
-                    null,
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Never);
+            // Two valid lines, two blank — only the two valid ones should be processed.
+            VerifyLog(LogLevel.Information, "Processing 2 FIX message(s)", Times.Once());
+            VerifyLog(LogLevel.Error, "Failed to parse FIX message", Times.Never());
         }
         finally
         {
@@ -189,71 +129,67 @@ public class ExecutionFileProcessorTests
 
     #endregion
 
-    #region BuildExecutionReportWithPrice tests
+    #region NormalizeFixLine tests
 
     [Fact]
-    public void BuildExecutionReportWithPrice_SetsCustomPrice()
+    public void NormalizeFixLine_PipeDelimited_ReplacesWithSoh()
     {
-        var report = ExecutionFileProcessor.BuildExecutionReportWithPrice(
-            "ORD1", "AAPL", Side.BUY, 100m, 155.50m);
+        //  (fixed-length unicode escape) — NOT \x01 in strings, which greedily eats following hex.
+        var input = "8=FIX.4.4|35=8|10=000";
+        var normalized = ExecutionFileProcessor.NormalizeFixLine(input);
 
-        Assert.Equal(155.50m, report.AvgPx.Value);
-        Assert.Equal(155.50m, report.LastPx.Value);
-        Assert.Equal(100m, report.CumQty.Value);
-        Assert.Equal(100m, report.LastQty.Value);
-        Assert.Equal(0m, report.LeavesQty.Value);
-        Assert.Equal("ORD1", report.ClOrdID.Value);
-        Assert.Equal("AAPL", report.Symbol.Value);
-        Assert.Equal(Side.BUY, report.Side.Value);
-        Assert.Equal(ExecType.FILL, report.ExecType.Value);
-        Assert.Equal(OrdStatus.FILLED, report.OrdStatus.Value);
+        Assert.Equal("8=FIX.4.435=810=000", normalized);
+    }
+
+    [Fact]
+    public void NormalizeFixLine_AlreadySoh_LeavesAsIs()
+    {
+        var input = "8=FIX.4.435=810=000";
+        var normalized = ExecutionFileProcessor.NormalizeFixLine(input);
+
+        Assert.Equal(input, normalized);
+    }
+
+    [Fact]
+    public void NormalizeFixLine_MixedSohAndPipe_LeavesAsIs()
+    {
+        // When SOH is already present, pipes inside values are preserved unchanged.
+        var input = "8=FIX.4.458=note|with|pipes10=000";
+        var normalized = ExecutionFileProcessor.NormalizeFixLine(input);
+
+        Assert.Equal(input, normalized);
+    }
+
+    [Fact]
+    public void NormalizeFixLine_Empty_ReturnsEmpty()
+    {
+        Assert.Equal("", ExecutionFileProcessor.NormalizeFixLine(""));
     }
 
     #endregion
 
-    #region Validation tests
-
-    [Fact]
-    public void ValidateExecution_ValidData_ReturnsTrue()
+    private void VerifyLog(LogLevel level, string fragment, Times times)
     {
-        var exec = new ExecutionData
-        {
-            ClOrdID = "ORD1", Symbol = "AAPL", Side = "BUY", OrderQty = 100
-        };
-
-        Assert.True(ExecutionFileProcessor.ValidateExecution(exec, out var error));
-        Assert.Equal(string.Empty, error);
+        _loggerMock.Verify(
+            l => l.Log(
+                level,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains(fragment)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
     }
 
-    [Fact]
-    public void ValidateExecution_NegativePrice_ReturnsFalse()
+    // Minimal well-formed FIX 4.4 ExecutionReport using pipe delimiters (NormalizeFixLine swaps for SOH).
+    private static string SampleExecutionReport(string clOrdId = "CLORD1")
     {
-        var exec = new ExecutionData
-        {
-            ClOrdID = "ORD1", Symbol = "AAPL", Side = "BUY", OrderQty = 100, Price = -50m
-        };
-
-        Assert.False(ExecutionFileProcessor.ValidateExecution(exec, out var error));
-        Assert.Contains("Price must be positive", error);
+        // Body length and checksum are not strictly validated by the Message string constructor,
+        // but we include realistic values so the line round-trips through parsing cleanly.
+        var body =
+            $"35=8|49=SERVER|56=CLIENT|34=1|52=20260517-12:00:00.000|" +
+            $"37=ORDER1|11={clOrdId}|17=EXEC1|150=F|39=2|55=AAPL|54=1|" +
+            $"151=0|14=100|6=100|31=100|32=100|";
+        var msg = $"8=FIX.4.4|9={body.Length}|{body}10=000|";
+        return msg;
     }
-
-    [Theory]
-    [InlineData("buy")]
-    [InlineData("BUY")]
-    [InlineData("Buy")]
-    public void ConvertSide_BuyCaseInsensitive_ReturnsBuy(string side)
-    {
-        Assert.Equal(Side.BUY, ExecutionFileProcessor.ConvertSide(side));
-    }
-
-    [Theory]
-    [InlineData("sell")]
-    [InlineData("SELL")]
-    [InlineData("Sell")]
-    public void ConvertSide_SellCaseInsensitive_ReturnsSell(string side)
-    {
-        Assert.Equal(Side.SELL, ExecutionFileProcessor.ConvertSide(side));
-    }
-
-    #endregion
 }

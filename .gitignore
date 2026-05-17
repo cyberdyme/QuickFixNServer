@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userprefs
+*.DotSettings.user
+
+# Rider / ReSharper caches
+_ReSharper.Caches/
+*.[Rr]e[Ss]harper
+
+# Test results
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+
+# QuickFIX/n runtime artifacts
+store/
+log/
+executions/
+
+# Claude Code local-only settings
+.claude/settings.local.json

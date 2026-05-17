@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FixAcceptor — QuickFIX/n FIX 4.4 Server Documentation</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-elev: #f7f8fa;
+    --bg-code: #f4f5f7;
+    --fg: #1f2328;
+    --fg-muted: #5b636b;
+    --border: #e1e4e8;
+    --border-strong: #c6cbd1;
+    --accent: #0969da;
+    --accent-fg: #ffffff;
+    --selection: #b6e3ff;
+    --kw: #cf222e;
+    --str: #0a3069;
+    --num: #0550ae;
+    --com: #6a737d;
+    --type: #8250df;
+    --fn: #953800;
+    --punct: #1f2328;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --bg-elev: #161b22;
+      --bg-code: #161b22;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --border: #30363d;
+      --border-strong: #484f58;
+      --accent: #58a6ff;
+      --accent-fg: #0d1117;
+      --selection: #264f78;
+      --kw: #ff7b72;
+      --str: #a5d6ff;
+      --num: #79c0ff;
+      --com: #8b949e;
+      --type: #d2a8ff;
+      --fn: #ffa657;
+      --punct: #e6edf3;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--selection); }
+
+  header.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  header.site-header h1 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  header.site-header .tag {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-elev);
+  }
+  .toc-toggle {
+    display: none;
+    background: var(--bg-elev);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 2rem;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem;
+  }
+
+  aside.toc {
+    position: sticky;
+    top: 64px;
+    align-self: start;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    padding-right: 1rem;
+  }
+  aside.toc h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    margin: 0 0 0.5rem;
+  }
+  aside.toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  aside.toc li { margin: 2px 0; }
+  aside.toc a {
+    display: block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-left: 2px solid transparent;
+  }
+  aside.toc a:hover { color: var(--fg); background: var(--bg-elev); }
+  aside.toc a.active {
+    color: var(--accent);
+    background: var(--bg-elev);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+  aside.toc ol ol { margin-left: 0.75rem; }
+  aside.toc ol ol a { font-size: 0.83rem; padding: 2px 8px; }
+
+  main {
+    min-width: 0;
+    max-width: 800px;
+  }
+
+  main h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+  }
+  main .lede {
+    font-size: 1.1rem;
+    color: var(--fg-muted);
+    margin: 0 0 2rem;
+  }
+  section { margin-bottom: 3rem; scroll-margin-top: 72px; }
+  section h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  section h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
+    letter-spacing: -0.01em;
+  }
+  section h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 1.25rem 0 0.4rem;
+  }
+  p { margin: 0 0 1rem; }
+  ul, ol { padding-left: 1.4rem; margin: 0 0 1rem; }
+  li { margin: 4px 0; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code, kbd {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  :not(pre) > code {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  .code-block {
+    position: relative;
+    margin: 1rem 0 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-code);
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--fg-muted);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .copy-btn:hover { color: var(--fg); border-color: var(--accent); }
+  .copy-btn.copied { color: #1a7f37; border-color: #1a7f37; }
+  pre {
+    margin: 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--fg);
+  }
+  pre code { background: none; border: none; padding: 0; }
+
+  .tok-kw  { color: var(--kw); }
+  .tok-str { color: var(--str); }
+  .tok-num { color: var(--num); }
+  .tok-com { color: var(--com); font-style: italic; }
+  .tok-type{ color: var(--type); }
+  .tok-fn  { color: var(--fn); }
+  .tok-punct { color: var(--punct); }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--bg-elev);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  .callout.warn { border-left-color: #d29922; }
+  .callout.danger { border-left-color: #cf222e; }
+  .callout strong { display: block; margin-bottom: 0.25rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--bg-elev); font-weight: 600; }
+  tbody tr:hover { background: var(--bg-elev); }
+
+  .arch {
+    border: 1px solid var(--border);
+    background: var(--bg-code);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--fg);
+    white-space: pre;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 1.25rem;
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+    aside.toc {
+      position: static;
+      max-height: none;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding-right: 0;
+      padding-bottom: 1rem;
+      display: none;
+    }
+    aside.toc.open { display: block; }
+    .toc-toggle { display: inline-block; }
+    main h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>FixAcceptor <span class="tag">FIX 4.4 / .NET 9</span></h1>
+  <button class="toc-toggle" id="toc-toggle" aria-label="Toggle table of contents">Contents</button>
+</header>
+
+<div class="layout">
+  <aside class="toc" id="toc" aria-label="Table of contents">
+    <h2>On this page</h2>
+    <nav>
+      <ol>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#getting-started">Getting Started</a>
+          <ol>
+            <li><a href="#prerequisites">Prerequisites</a></li>
+            <li><a href="#build-run">Build &amp; Run</a></li>
+          </ol>
+        </li>
+        <li><a href="#configuration">Configuration</a>
+          <ol>
+            <li><a href="#server-cfg">server.cfg</a></li>
+            <li><a href="#data-dictionary">Data Dictionary</a></li>
+            <li><a href="#client-config">Connecting a Client</a></li>
+          </ol>
+        </li>
+        <li><a href="#components">Core Components</a>
+          <ol>
+            <li><a href="#program">Program &amp; DI</a></li>
+            <li><a href="#fix-server-app">FixServerApp</a></li>
+            <li><a href="#fix-host">FixAcceptorHost</a></li>
+            <li><a href="#message-handler">FixMessageHandler</a></li>
+            <li><a href="#session-registry">SessionRegistry</a></li>
+            <li><a href="#file-watcher">ExecutionFileWatcherService</a></li>
+            <li><a href="#file-processor">ExecutionFileProcessor</a></li>
+          </ol>
+        </li>
+        <li><a href="#execution-file-format">Execution File Format</a></li>
+        <li><a href="#workflows">Workflows</a>
+          <ol>
+            <li><a href="#workflow-order">Order Echo</a></li>
+            <li><a href="#workflow-file">File Drop Broadcast</a></li>
+          </ol>
+        </li>
+        <li><a href="#testing">Testing</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#project-layout">Project Layout</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main>
+    <h1>FixAcceptor</h1>
+    <p class="lede">A minimal QuickFIX/n based FIX 4.4 acceptor (server) built on the .NET Generic Host. Accepts client connections on TCP <code>5001</code>, auto-fills incoming <code>NewOrderSingle</code> orders, and can broadcast <code>ExecutionReport</code> messages to all logged-on sessions from JSON files dropped into a watched directory.</p>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>FixAcceptor is a lightweight FIX engine harness intended for development, testing, and integration scenarios where you need a predictable server-side counterparty to a FIX initiator (client). It demonstrates two common patterns at once:</p>
+      <ul>
+        <li><strong>Synchronous echo</strong> — incoming <code>NewOrderSingle (35=D)</code> messages are immediately answered with a <code>FILLED</code> <code>ExecutionReport (35=8)</code>.</li>
+        <li><strong>Asynchronous push</strong> — drop a JSON file into the <code>executions/</code> folder and the server broadcasts a corresponding <code>ExecutionReport</code> to every active session.</li>
+      </ul>
+      <p>The project uses <code>Microsoft.Extensions.Hosting</code> with constructor-injected dependencies, keeps protocol concerns in <code>Fix/</code>, and isolates IO-bound work in <code>Services/</code>.</p>
+    </section>
+
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>Two hosted services run side-by-side under a single <code>IHost</code>. They communicate only through the thread-safe <code>SessionRegistry</code>, so neither side needs to know the other exists.</p>
+      <div class="arch">
++-----------------------+        +----------------------------------+
+|  FIX Client(s)        |  TCP   |  FixAcceptorHost                 |
+|  (initiator, port     +------->|   ThreadedSocketAcceptor :5001   |
+|   5001 outbound)      |  35=D  |        |                         |
++-----------------------+        |        v                         |
+                                 |   FixServerApp (IApplication)    |
+                                 |        |  OnLogon / OnLogout     |
+                                 |        |  FromApp -> Crack       |
+                                 |        v                         |
+                                 |   FixMessageHandler --(35=8)---->|
+                                 |        |                         |
+                                 |        v                         |
+                                 |   SessionRegistry (concurrent)   |
+                                 +----------^---------------+-------+
+                                            |               |
+                          GetActiveSessions |               | Register/
+                                            |               | Unregister
+                                 +----------+----------+    |
+                                 | ExecutionFileWatcher|    |
+                                 |   FileSystemWatcher |    |
+                                 |        |            |    |
+                                 |        v            |    |
+                                 | ExecutionFileProcessor   |
+                                 |   read .json -> validate |
+                                 |   -> broadcast 35=8      |
+                                 +--------------------------+
+                                          ^
+                                          | drop *.json
+                                  executions/ (watched)
+                                          |
+                                          v
+                                  executions/processed/ (archived)
+      </div>
+    </section>
+
+    <section id="getting-started">
+      <h2>Getting Started</h2>
+
+      <h3 id="prerequisites">Prerequisites</h3>
+      <ul>
+        <li><strong>.NET 9 SDK</strong> — the project targets <code>net9.0</code>.</li>
+        <li><strong>QuickFIXn.Core 1.14</strong> and <strong>QuickFIXn.FIX44 1.14</strong> — resolved via NuGet on first build.</li>
+        <li>A FIX client (initiator) configured to connect to <code>localhost:5001</code> with <code>SenderCompID=CLIENT</code> and <code>TargetCompID=SERVER</code>.</li>
+      </ul>
+
+      <h3 id="build-run">Build &amp; Run</h3>
+      <div class="code-block">
+        <div class="code-header"><span>powershell</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="shell"># From the repository root
+dotnet restore FixAcceptor.sln
+dotnet build FixAcceptor.sln -c Release
+
+# Run the acceptor
+dotnet run --project src/FixAcceptor/FixAcceptor.csproj</code></pre>
+      </div>
+      <p>On startup the console clears, prints <code>******** FIX Client ****************</code>, and the acceptor begins listening on port <code>5001</code>. The <code>executions/</code> watch folder and its <code>processed/</code> archive are created on first run under the build output directory.</p>
+
+      <div class="callout">
+        <strong>Tip</strong>
+        Both the <code>store/</code> and <code>log/</code> directories used by QuickFIX/n are created relative to the working directory. To start fresh, stop the host and delete those folders to reset sequence numbers.
+      </div>
+    </section>
+
+    <section id="configuration">
+      <h2>Configuration</h2>
+
+      <h3 id="server-cfg">server.cfg</h3>
+      <p>The QuickFIX/n session configuration is loaded from <code>server.cfg</code> at startup by <code>SessionSettingsProvider</code>. The file is copied to the output directory on build.</p>
+      <div class="code-block">
+        <div class="code-header"><span>server.cfg</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="ini">[DEFAULT]
+ConnectionType=acceptor
+StartTime=00:00:00
+EndTime=23:59:59
+HeartBtInt=30
+FileStorePath=store
+FileLogPath=log
+UseDataDictionary=Y
+DataDictionary=FIX44.xml
+ValidateUserDefinedFields=N
+AllowUnknownMsgFields=Y
+
+[SESSION]
+BeginString=FIX.4.4
+SenderCompID=SERVER
+TargetCompID=CLIENT
+SocketAcceptPort=5001</code></pre>
+      </div>
+      <p>Notable choices:</p>
+      <ul>
+        <li><code>StartTime=00:00:00</code> / <code>EndTime=23:59:59</code> — the session is always open.</li>
+        <li><code>HeartBtInt=30</code> — the server expects a 30-second heartbeat from any logged-on client.</li>
+        <li><code>AllowUnknownMsgFields=Y</code> — keeps the engine permissive when clients add custom tags.</li>
+      </ul>
+
+      <h3 id="data-dictionary">Data Dictionary</h3>
+      <p>All eight standard FIX XML dictionaries (FIX 4.0 through FIX 5.0 SP2) ship in <code>DataDictionaries/</code>. Only <code>FIX44.xml</code> is linked into the build output, since the session is hard-coded to <code>BeginString=FIX.4.4</code>. To support a different version, change <code>BeginString</code> / <code>DataDictionary</code> in <code>server.cfg</code> and add the dictionary as a <code>None Include</code> in <code>FixAcceptor.csproj</code>.</p>
+
+      <h3 id="client-config">Connecting a Client</h3>
+      <p>A sample QuickFIX/n initiator config that pairs with this acceptor lives at <code>docs/client.cfg</code>. It is the mirror image of <code>server.cfg</code>: <code>ConnectionType=initiator</code>, <code>SenderCompID</code> / <code>TargetCompID</code> swapped, and the listening port replaced by <code>SocketConnectHost</code> / <code>SocketConnectPort</code>.</p>
+      <div class="code-block">
+        <div class="code-header"><span>docs/client.cfg</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="ini">[DEFAULT]
+ConnectionType=initiator
+ReconnectInterval=5
+HeartBtInt=30
+FileStorePath=store
+FileLogPath=log
+UseDataDictionary=Y
+DataDictionary=FIX44.xml
+ValidateUserDefinedFields=N
+AllowUnknownMsgFields=Y
+StartTime=00:00:00
+EndTime=23:59:59
+
+[SESSION]
+BeginString=FIX.4.4
+SenderCompID=CLIENT
+TargetCompID=SERVER
+SocketConnectHost=127.0.0.1
+SocketConnectPort=5001</code></pre>
+      </div>
+      <p>Field-by-field mapping to the server config:</p>
+      <table>
+        <thead>
+          <tr><th>Setting</th><th>Server</th><th>Client</th><th>Why it pairs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ConnectionType</code></td><td><code>acceptor</code></td><td><code>initiator</code></td><td>Server listens; client dials out.</td></tr>
+          <tr><td><code>BeginString</code></td><td><code>FIX.4.4</code></td><td><code>FIX.4.4</code></td><td>Must match exactly.</td></tr>
+          <tr><td><code>SenderCompID</code></td><td><code>SERVER</code></td><td><code>CLIENT</code></td><td>Swapped — server expects messages whose sender is <code>CLIENT</code>.</td></tr>
+          <tr><td><code>TargetCompID</code></td><td><code>CLIENT</code></td><td><code>SERVER</code></td><td>Same reason, inverted.</td></tr>
+          <tr><td>Port</td><td><code>SocketAcceptPort=5001</code></td><td><code>SocketConnectPort=5001</code></td><td>Server binds, client connects.</td></tr>
+          <tr><td>Host</td><td>—</td><td><code>SocketConnectHost=127.0.0.1</code></td><td>Local loopback when both run on this machine.</td></tr>
+          <tr><td><code>HeartBtInt</code></td><td><code>30</code></td><td><code>30</code></td><td>Negotiated on logon — keep them equal.</td></tr>
+          <tr><td><code>DataDictionary</code></td><td><code>FIX44.xml</code></td><td><code>FIX44.xml</code></td><td>Both sides need the dictionary on disk next to the config.</td></tr>
+          <tr><td><code>ReconnectInterval</code></td><td>—</td><td><code>5</code></td><td>Initiator-only; how long to wait between reconnect attempts.</td></tr>
+        </tbody>
+      </table>
+
+      <p>Wire the file into a QuickFIX/n initiator (<code>SocketInitiator</code> or <code>ThreadedSocketInitiator</code>) and copy <code>FIX44.xml</code> from <code>DataDictionaries/</code> into the client's output directory — same trick the server's csproj uses with the linked <code>None Include</code>.</p>
+
+      <div class="callout warn">
+        <strong>Sequence numbers persist on both sides</strong>
+        QuickFIX/n stores per-session sequence numbers under <code>FileStorePath</code> for both acceptor and initiator. If you reset one side, reset the other (delete both <code>store/</code> dirs) or the next logon will be rejected with a sequence-number mismatch.
+      </div>
+      <div class="callout">
+        <strong>Same-machine setup</strong>
+        Run the client from a different working directory than the server so they don't share <code>store/</code> and <code>log/</code> folders. The defaults are relative paths, so simply launching each from its own output directory is enough.
+      </div>
+    </section>
+
+    <section id="components">
+      <h2>Core Components</h2>
+
+      <h3 id="program">Program &amp; Dependency Injection</h3>
+      <p><code>Program.cs</code> wires up the generic host. All services are singletons (each is intrinsically thread-safe or stateless), and two are registered as <code>IHostedService</code> so they start with the host:</p>
+      <div class="code-block">
+        <div class="code-header"><span>src/FixAcceptor/Program.cs</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="csharp">var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddSingleton&lt;ISessionSettingsProvider, SessionSettingsProvider&gt;();
+builder.Services.AddSingleton&lt;ISessionRegistry, SessionRegistry&gt;();
+builder.Services.AddSingleton&lt;IFixMessageHandler, FixMessageHandler&gt;();
+builder.Services.AddSingleton&lt;IExecutionFileProcessor, ExecutionFileProcessor&gt;();
+builder.Services.AddSingleton&lt;FixServerApp&gt;();
+builder.Services.AddHostedService&lt;FixAcceptorHost&gt;();
+builder.Services.AddHostedService&lt;ExecutionFileWatcherService&gt;();</code></pre>
+      </div>
+
+      <h3 id="fix-server-app">FixServerApp</h3>
+      <p>Implements QuickFIX/n's <code>IApplication</code> by extending <code>MessageCracker</code>. Lifecycle callbacks (<code>OnCreate</code>, <code>OnLogon</code>, <code>OnLogout</code>) update the <code>SessionRegistry</code>. <code>FromApp</code> delegates message dispatch to <code>Crack(...)</code>, which routes <code>NewOrderSingle</code> instances to the typed <code>OnMessage</code> overload:</p>
+      <div class="code-block">
+        <div class="code-header"><span>Fix/FixServerApp.cs</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="csharp">public void OnLogon(SessionID sessionId)
+{
+    _logger.LogInformation("Logon: {SessionId}", sessionId);
+    _sessionRegistry.Register(sessionId);
+}
+
+public void FromApp(Message message, SessionID sessionId)
+{
+    var msgType = message.Header.GetString(QuickFix.Fields.Tags.MsgType);
+    _logger.LogInformation("FromApp [{MsgType}]: {SessionId}", msgType, sessionId);
+    Crack(message, sessionId);
+}
+
+public void OnMessage(QuickFix.FIX44.NewOrderSingle order, SessionID sessionId)
+{
+    _handler.HandleNewOrderSingle(order, sessionId);
+}</code></pre>
+      </div>
+
+      <h3 id="fix-host">FixAcceptorHost</h3>
+      <p><code>IHostedService</code> wrapper around <code>ThreadedSocketAcceptor</code>. <code>StartAsync</code> builds a <code>FileStoreFactory</code> (message store) and <code>ScreenLogFactory</code> (FIX wire log to console), then starts the acceptor. <code>StopAsync</code> stops and disposes it on shutdown.</p>
+
+      <h3 id="message-handler">FixMessageHandler</h3>
+      <p>Translates a <code>NewOrderSingle</code> into a fully-populated <code>ExecutionReport</code>, sets <code>ExecType=FILL</code> / <code>OrdStatus=FILLED</code>, then routes the response with <code>Session.SendToTarget(...)</code>. The fill is synthetic: every order is reported as <strong>completely filled at price 100.0</strong>.</p>
+      <div class="code-block">
+        <div class="code-header"><span>Services/FixMessageHandler.cs</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="csharp">public static QuickFix.FIX44.ExecutionReport BuildExecutionReport(
+    string clOrdId, string symbol, char side, decimal orderQty)
+{
+    var orderId = Guid.NewGuid().ToString("N");
+    var execId  = Guid.NewGuid().ToString("N");
+
+    var execReport = new QuickFix.FIX44.ExecutionReport(
+        new OrderID(orderId),
+        new ExecID(execId),
+        new ExecType(ExecType.FILL),
+        new OrdStatus(OrdStatus.FILLED),
+        new Symbol(symbol),
+        new Side(side),
+        new LeavesQty(0m),
+        new CumQty(orderQty),
+        new AvgPx(100m));
+
+    execReport.Set(new ClOrdID(clOrdId));
+    execReport.Set(new LastQty(orderQty));
+    execReport.Set(new LastPx(100m));
+
+    return execReport;
+}</code></pre>
+      </div>
+
+      <h3 id="session-registry">SessionRegistry</h3>
+      <p>Thread-safe directory of currently logged-on <code>SessionID</code>s backed by a <code>ConcurrentDictionary</code>. <code>FixServerApp</code> writes to it on logon/logout; <code>ExecutionFileProcessor</code> reads from it when broadcasting.</p>
+      <div class="code-block">
+        <div class="code-header"><span>Services/SessionRegistry.cs</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="csharp">public class SessionRegistry : ISessionRegistry
+{
+    private readonly ConcurrentDictionary&lt;string, SessionID&gt; _sessions = new();
+
+    public void Register(SessionID sessionId)   =&gt; _sessions.TryAdd(sessionId.ToString(), sessionId);
+    public void Unregister(SessionID sessionId) =&gt; _sessions.TryRemove(sessionId.ToString(), out _);
+
+    public IReadOnlyCollection&lt;SessionID&gt; GetActiveSessions() =&gt; _sessions.Values.ToList();
+    public bool HasActiveSessions()                           =&gt; !_sessions.IsEmpty;
+}</code></pre>
+      </div>
+
+      <h3 id="file-watcher">ExecutionFileWatcherService</h3>
+      <p>Background service that monitors <code>{baseDir}/executions/</code> for newly-created <code>*.json</code> files via <code>FileSystemWatcher</code>. Each new file is gated by <code>WaitForFileReadyAsync</code> (a 10-attempt, 100ms polling loop that opens the file exclusively) to avoid reading a partial write. On success the file is passed to <code>ExecutionFileProcessor</code> and then moved to <code>executions/processed/</code> with a UTC timestamp suffix.</p>
+      <div class="callout warn">
+        <strong>Note on errors</strong>
+        If <code>ProcessFileAsync</code> throws, the file is intentionally <em>not</em> moved so a human can inspect it. Re-running the host will pick it back up the next time it appears as a created file — manual deletion or re-drop may be required.
+      </div>
+
+      <h3 id="file-processor">ExecutionFileProcessor</h3>
+      <p>Reads a JSON array of <code>ExecutionData</code>, validates each record, builds a FIX 4.4 <code>ExecutionReport</code>, and sends it to every active session via <code>Session.SendToTarget</code>.</p>
+      <p>Validation rules (see <code>ValidateExecution</code>):</p>
+      <ul>
+        <li><code>ClOrdID</code> — required, non-whitespace.</li>
+        <li><code>Symbol</code> — required, non-whitespace.</li>
+        <li><code>OrderQty</code> — strictly positive.</li>
+        <li><code>Side</code> — must equal <code>"BUY"</code> or <code>"SELL"</code> (case-insensitive).</li>
+        <li><code>Price</code> — optional, but must be strictly positive when present. Defaults to <code>100m</code>.</li>
+      </ul>
+      <p>If no sessions are logged on, the processor logs a warning and skips the file (the file is still moved to <code>processed/</code> because no exception was thrown — re-drop the file once a client has connected to deliver it).</p>
+    </section>
+
+    <section id="execution-file-format">
+      <h2>Execution File Format</h2>
+      <p>Drop a UTF-8 JSON file with a top-level array into <code>executions/</code>. Property names are matched case-insensitively.</p>
+      <div class="code-block">
+        <div class="code-header"><span>executions/sample.json</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="json">[
+  {
+    "ClOrdID": "ORD-1001",
+    "Symbol": "AAPL",
+    "Side": "BUY",
+    "OrderQty": 100,
+    "Price": 195.42
+  },
+  {
+    "ClOrdID": "ORD-1002",
+    "Symbol": "MSFT",
+    "Side": "SELL",
+    "OrderQty": 50
+  }
+]</code></pre>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ClOrdID</code></td><td>string</td><td>yes</td><td>Echoed onto the outgoing ExecutionReport.</td></tr>
+          <tr><td><code>Symbol</code></td><td>string</td><td>yes</td><td>Instrument symbol.</td></tr>
+          <tr><td><code>Side</code></td><td>string</td><td>yes</td><td><code>BUY</code> or <code>SELL</code>, case-insensitive.</td></tr>
+          <tr><td><code>OrderQty</code></td><td>decimal</td><td>yes</td><td>Must be greater than zero.</td></tr>
+          <tr><td><code>Price</code></td><td>decimal?</td><td>no</td><td>Defaults to <code>100</code> when omitted; must be positive if present.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="workflows">
+      <h2>Workflows</h2>
+
+      <h3 id="workflow-order">Synchronous Order Echo</h3>
+      <ol>
+        <li>Client connects to <code>localhost:5001</code> and sends a <code>Logon (35=A)</code>.</li>
+        <li><code>FixServerApp.OnLogon</code> registers the <code>SessionID</code>.</li>
+        <li>Client sends <code>NewOrderSingle (35=D)</code>.</li>
+        <li><code>FromApp</code> cracks the message; <code>OnMessage(NewOrderSingle, ...)</code> delegates to <code>FixMessageHandler</code>.</li>
+        <li>A fully-filled <code>ExecutionReport (35=8)</code> with fresh <code>OrderID</code> / <code>ExecID</code> is returned on the same session.</li>
+      </ol>
+
+      <h3 id="workflow-file">Asynchronous File-Drop Broadcast</h3>
+      <ol>
+        <li>Drop <code>my-fills.json</code> into the <code>executions/</code> directory (created on first run, under the build output).</li>
+        <li><code>ExecutionFileWatcherService</code> sees the <code>Created</code> event and waits until the file is readable.</li>
+        <li><code>ExecutionFileProcessor</code> deserializes, validates each entry, and builds an <code>ExecutionReport</code> per row.</li>
+        <li>Each report is sent to <em>every</em> session in <code>SessionRegistry</code> via <code>Session.SendToTarget</code>.</li>
+        <li>On success the file is moved to <code>executions/processed/{name}_{yyyyMMdd_HHmmss}.json</code>.</li>
+      </ol>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <p>xUnit tests live under <code>tests/FixAcceptor.Tests/</code> and cover four areas:</p>
+      <ul>
+        <li><code>ExecutionReportBuilderTests</code> — builder shape, default price, GUID identifiers.</li>
+        <li><code>ExecutionFileProcessorTests</code> — validation rules, side conversion, JSON parsing.</li>
+        <li><code>FixServerAppTests</code> — logon/logout registration, cracker dispatch.</li>
+        <li><code>SessionRegistryTests</code> — concurrent register/unregister behavior.</li>
+      </ul>
+      <div class="code-block">
+        <div class="code-header"><span>powershell</span><button class="copy-btn" type="button">Copy</button></div>
+<pre><code data-lang="shell">dotnet test FixAcceptor.sln -c Release</code></pre>
+      </div>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>FileNotFoundException: QuickFIX config not found</code></td>
+            <td><code>server.cfg</code> not copied to the output directory.</td>
+            <td>Confirm the <code>&lt;None Update="server.cfg"&gt;</code> entry in the csproj is present; rebuild.</td>
+          </tr>
+          <tr>
+            <td>Client cannot log on (sequence mismatch)</td>
+            <td>State persisted in <code>store/</code> from a previous run is out of sync with the client.</td>
+            <td>Stop the host and delete the <code>store/</code> directory under the output folder.</td>
+          </tr>
+          <tr>
+            <td>JSON file dropped but no ExecutionReport sent</td>
+            <td>No active sessions, or validation failed for every row.</td>
+            <td>Check the log — <code>no sessions are logged on</code> or <code>Invalid execution</code> entries appear at WARN/ERROR.</td>
+          </tr>
+          <tr>
+            <td>File silently never processed</td>
+            <td>Locked by another process; <code>WaitForFileReadyAsync</code> gave up after 10 attempts.</td>
+            <td>Write the file atomically (write to a sibling name, then rename) so it is fully flushed before <code>FileSystemWatcher</code> fires.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="project-layout">
+      <h2>Project Layout</h2>
+      <div class="arch">
+QuickFixNServer/
+├── DataDictionaries/            FIX 4.0–5.0 SP2 XML dictionaries
+│   └── FIX44.xml                (linked into FixAcceptor build output)
+├── docs/
+│   ├── index.html               this document
+│   └── client.cfg               sample QuickFIX/n initiator config
+├── src/
+│   └── FixAcceptor/
+│       ├── Program.cs           host bootstrap + DI registration
+│       ├── server.cfg           QuickFIX/n session settings
+│       ├── Fix/
+│       │   └── FixServerApp.cs  IApplication / MessageCracker impl
+│       ├── Infrastructure/
+│       │   └── SessionSettingsProvider.cs
+│       ├── Models/
+│       │   └── ExecutionData.cs JSON payload shape
+│       └── Services/
+│           ├── FixAcceptorHost.cs            hosted ThreadedSocketAcceptor
+│           ├── FixMessageHandler.cs          NewOrderSingle -> ExecutionReport
+│           ├── SessionRegistry.cs            thread-safe SessionID store
+│           ├── ISessionRegistry.cs
+│           ├── ExecutionFileWatcherService.cs FileSystemWatcher host
+│           ├── ExecutionFileProcessor.cs      JSON -> broadcast
+│           └── IExecutionFileProcessor.cs
+└── tests/
+    └── FixAcceptor.Tests/       xUnit + Moq test suite
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  FixAcceptor documentation — generated for offline use. Open this file directly in any modern browser.
+</footer>
+
+<script>
+(function () {
+  // ---------- syntax highlighter (tiny, hand-rolled) ----------
+  var keywords = {
+    csharp: ['using','namespace','class','public','private','protected','internal','static','readonly','void','var','new','return','if','else','for','foreach','while','do','switch','case','break','continue','throw','try','catch','finally','async','await','this','base','null','true','false','interface','struct','enum','override','virtual','abstract','sealed','partial','in','out','ref','params','const','default','get','set','record','where'],
+    shell:  ['dotnet','cd','ls','mkdir','rm','cp','mv','echo','export','set','run','build','restore','test','project','config','from','to'],
+    json:   ['true','false','null'],
+    ini:    []
+  };
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function highlightCsharp(src) {
+    src = escapeHtml(src);
+    // comments
+    src = src.replace(/(\/\/[^\n]*)/g, '<span class="tok-com">$1</span>');
+    src = src.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="tok-com">$1</span>');
+    // strings (handle escaped quotes simply)
+    src = src.replace(/(&quot;(?:\\.|[^&quot;\\])*&quot;)/g, '<span class="tok-str">$1</span>');
+    src = src.replace(/(&#39;.&#39;)/g, '<span class="tok-str">$1</span>');
+    // numbers
+    src = src.replace(/\b(\d+\.?\d*[mfdMFD]?)\b/g, '<span class="tok-num">$1</span>');
+    // keywords
+    var kwRe = new RegExp('\\b(' + keywords.csharp.join('|') + ')\\b', 'g');
+    src = src.replace(kwRe, '<span class="tok-kw">$1</span>');
+    // PascalCase types (heuristic)
+    src = src.replace(/\b([A-Z][A-Za-z0-9_]+)\b/g, '<span class="tok-type">$1</span>');
+    return src;
+  }
+
+  function highlightShell(src) {
+    src = escapeHtml(src);
+    src = src.replace(/(#[^\n]*)/g, '<span class="tok-com">$1</span>');
+    var kwRe = new RegExp('\\b(' + keywords.shell.join('|') + ')\\b', 'g');
+    src = src.replace(kwRe, '<span class="tok-kw">$1</span>');
+    src = src.replace(/(--?[A-Za-z][\w-]*)/g, '<span class="tok-fn">$1</span>');
+    return src;
+  }
+
+  function highlightJson(src) {
+    src = escapeHtml(src);
+    src = src.replace(/(&quot;[^&quot;]*&quot;)(\s*:)/g, '<span class="tok-type">$1</span>$2');
+    src = src.replace(/(&quot;[^&quot;]*&quot;)/g, function (m, p1, off, str) {
+      // skip already-wrapped keys
+      if (str.slice(Math.max(0, off - 20), off).indexOf('tok-type') !== -1) return m;
+      return '<span class="tok-str">' + p1 + '</span>';
+    });
+    src = src.replace(/\b(-?\d+\.?\d*)\b/g, '<span class="tok-num">$1</span>');
+    src = src.replace(/\b(true|false|null)\b/g, '<span class="tok-kw">$1</span>');
+    return src;
+  }
+
+  function highlightIni(src) {
+    src = escapeHtml(src);
+    src = src.replace(/(^|\n)(\[[^\]]+\])/g, '$1<span class="tok-kw">$2</span>');
+    src = src.replace(/(^|\n)([A-Za-z_][\w]*)\s*=/g, '$1<span class="tok-type">$2</span>=');
+    src = src.replace(/=([^\n]*)/g, '=<span class="tok-str">$1</span>');
+    return src;
+  }
+
+  var highlighters = {
+    csharp: highlightCsharp,
+    shell:  highlightShell,
+    json:   highlightJson,
+    ini:    highlightIni
+  };
+
+  document.querySelectorAll('pre > code[data-lang]').forEach(function (el) {
+    var lang = el.getAttribute('data-lang');
+    var fn = highlighters[lang];
+    if (!fn) return;
+    // Work from textContent to avoid double-escaping the entity-encoded source
+    var raw = el.textContent;
+    el.innerHTML = fn(raw);
+  });
+
+  // ---------- copy-to-clipboard ----------
+  document.querySelectorAll('.code-block').forEach(function (block) {
+    var btn = block.querySelector('.copy-btn');
+    var code = block.querySelector('pre code');
+    if (!btn || !code) return;
+    btn.addEventListener('click', function () {
+      var text = code.textContent;
+      var done = function () {
+        var prev = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = prev;
+          btn.classList.remove('copied');
+        }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {
+          fallbackCopy(text); done();
+        });
+      } else {
+        fallbackCopy(text); done();
+      }
+    });
+  });
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  // ---------- mobile TOC toggle ----------
+  var toggle = document.getElementById('toc-toggle');
+  var toc = document.getElementById('toc');
+  if (toggle && toc) {
+    toggle.addEventListener('click', function () { toc.classList.toggle('open'); });
+    toc.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        if (window.matchMedia('(max-width: 768px)').matches) toc.classList.remove('open');
+      });
+    });
+  }
+
+  // ---------- scroll-spy: highlight active TOC entry ----------
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section[id]'));
+  var tocLinks = {};
+  toc.querySelectorAll('a[href^="#"]').forEach(function (a) {
+    tocLinks[a.getAttribute('href').slice(1)] = a;
+  });
+
+  function onScroll() {
+    var top = window.scrollY + 100;
+    var current = sections[0] && sections[0].id;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].offsetTop <= top) current = sections[i].id;
+    }
+    Object.keys(tocLinks).forEach(function (k) { tocLinks[k].classList.remove('active'); });
+    if (current && tocLinks[current]) tocLinks[current].classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

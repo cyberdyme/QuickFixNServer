@@ -72,4 +72,62 @@ public class FixServerAppTests
 
         _sessionRegistryMock.Verify(r => r.Unregister(sessionId), Times.Once);
     }
+
+    [Theory]
+    [InlineData("A")] // Logon
+    [InlineData("5")] // Logout
+    [InlineData("0")] // Heartbeat
+    [InlineData("1")] // TestRequest
+    [InlineData("2")] // ResendRequest
+    [InlineData("3")] // Reject
+    [InlineData("4")] // SequenceReset
+    [InlineData("Z")] // unknown admin type — exercises default branch
+    public void FromAdmin_HandlesKnownAdminMessageTypes(string msgType)
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var msg = new Message();
+        msg.Header.SetField(new MsgType(msgType));
+
+        var ex = Record.Exception(() => _app.FromAdmin(msg, sessionId));
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void FromApp_WithUnsupportedMessageType_RethrowsSoEngineCanReject()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var unsupported = new Message();
+        // 'BE' = UserRequest in FIX 4.4 — we have no OnMessage handler for it,
+        // so MessageCracker.Crack throws UnsupportedMessageType, which we must
+        // re-raise so QuickFIX/n emits a BusinessMessageReject (35=j).
+        unsupported.Header.SetField(new MsgType("BE"));
+
+        Assert.Throws<UnsupportedMessageType>(() => _app.FromApp(unsupported, sessionId));
+        _handlerMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void ToAdmin_DoesNotThrowOnWellFormedMessage()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var msg = new Message();
+        msg.Header.SetField(new MsgType("A"));
+
+        var ex = Record.Exception(() => _app.ToAdmin(msg, sessionId));
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void ToApp_DoesNotThrowOnWellFormedMessage()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var msg = new Message();
+        msg.Header.SetField(new MsgType("D"));
+
+        var ex = Record.Exception(() => _app.ToApp(msg, sessionId));
+
+        Assert.Null(ex);
+    }
 }

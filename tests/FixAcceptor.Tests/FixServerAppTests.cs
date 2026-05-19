@@ -94,6 +94,66 @@ public class FixServerAppTests
     }
 
     [Fact]
+    public void FromApp_WithOrderCancelRequest_DelegatesToHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var cancel = new QuickFix.FIX44.OrderCancelRequest(
+            new OrigClOrdID("ORIG"),
+            new ClOrdID("CXL1"),
+            new Symbol("AAPL"),
+            new Side(Side.BUY),
+            new TransactTime(DateTime.UtcNow));
+
+        _app.FromApp(cancel, sessionId);
+
+        _handlerMock.Verify(
+            h => h.HandleOrderCancelRequest(
+                It.Is<QuickFix.FIX44.OrderCancelRequest>(o => o.ClOrdID.Value == "CXL1"),
+                sessionId),
+            Times.Once);
+    }
+
+    [Fact]
+    public void FromApp_WithOrderCancelReplaceRequest_DelegatesToHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var replace = new QuickFix.FIX44.OrderCancelReplaceRequest(
+            new OrigClOrdID("ORIG"),
+            new ClOrdID("REPL1"),
+            new Symbol("AAPL"),
+            new Side(Side.BUY),
+            new TransactTime(DateTime.UtcNow),
+            new OrdType(OrdType.LIMIT));
+        replace.Set(new OrderQty(50m));
+
+        _app.FromApp(replace, sessionId);
+
+        _handlerMock.Verify(
+            h => h.HandleOrderCancelReplaceRequest(
+                It.Is<QuickFix.FIX44.OrderCancelReplaceRequest>(o => o.ClOrdID.Value == "REPL1"),
+                sessionId),
+            Times.Once);
+    }
+
+    [Fact]
+    public void FromApp_WithOrderStatusRequest_DelegatesToHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var status = new QuickFix.FIX44.OrderStatusRequest(
+            new ClOrdID("STATUS1"),
+            new Symbol("AAPL"),
+            new Side(Side.BUY));
+
+        _app.FromApp(status, sessionId);
+
+        _handlerMock.Verify(
+            h => h.HandleOrderStatusRequest(
+                It.Is<QuickFix.FIX44.OrderStatusRequest>(o => o.ClOrdID.Value == "STATUS1"),
+                sessionId),
+            Times.Once);
+    }
+
+    [Fact]
     public void FromApp_WithUnsupportedMessageType_RethrowsSoEngineCanReject()
     {
         var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");

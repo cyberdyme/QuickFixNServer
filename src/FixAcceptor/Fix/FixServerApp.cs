@@ -120,6 +120,21 @@ public class FixServerApp : MessageCracker, IApplication
         _handler.HandleNewOrderSingle(order, sessionId);
     }
 
+    public void OnMessage(QuickFix.FIX44.OrderCancelRequest request, SessionID sessionId)
+    {
+        _handler.HandleOrderCancelRequest(request, sessionId);
+    }
+
+    public void OnMessage(QuickFix.FIX44.OrderCancelReplaceRequest request, SessionID sessionId)
+    {
+        _handler.HandleOrderCancelReplaceRequest(request, sessionId);
+    }
+
+    public void OnMessage(QuickFix.FIX44.OrderStatusRequest request, SessionID sessionId)
+    {
+        _handler.HandleOrderStatusRequest(request, sessionId);
+    }
+
     private void LogInboundLogon(Message message, SessionID sessionId)
     {
         _logger.LogInformation(

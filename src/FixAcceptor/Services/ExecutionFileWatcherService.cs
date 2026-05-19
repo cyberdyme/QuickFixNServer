@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using FixAcceptor.Infrastructure;
 
 namespace FixAcceptor.Services;
 
@@ -13,12 +15,13 @@ public class ExecutionFileWatcherService : BackgroundService
 
     public ExecutionFileWatcherService(
         IExecutionFileProcessor processor,
+        IOptions<FixAcceptorOptions> options,
         ILogger<ExecutionFileWatcherService> logger)
     {
         _processor = processor;
         _logger = logger;
-        _watchDirectory = Path.Combine(AppContext.BaseDirectory, "executions");
-        _processedDirectory = Path.Combine(_watchDirectory, "processed");
+        _watchDirectory = Path.Combine(AppContext.BaseDirectory, options.Value.ExecutionsDirectory);
+        _processedDirectory = Path.Combine(AppContext.BaseDirectory, options.Value.ProcessedDirectory);
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using QuickFix;
 
 namespace FixAcceptor.Infrastructure;
@@ -5,20 +6,23 @@ namespace FixAcceptor.Infrastructure;
 public interface ISessionSettingsProvider
 {
     SessionSettings GetSettings();
+    string ResolvedConfigPath { get; }
 }
 
 public class SessionSettingsProvider : ISessionSettingsProvider
 {
     private readonly string _configPath;
 
-    public SessionSettingsProvider(string configPath = "server.cfg")
+    public SessionSettingsProvider(IOptions<FixAcceptorOptions> options)
     {
-        _configPath = configPath;
+        _configPath = options.Value.ConfigFile;
     }
+
+    public string ResolvedConfigPath => Path.Combine(AppContext.BaseDirectory, _configPath);
 
     public SessionSettings GetSettings()
     {
-        var fullPath = Path.Combine(AppContext.BaseDirectory, _configPath);
+        var fullPath = ResolvedConfigPath;
         if (!File.Exists(fullPath))
             throw new FileNotFoundException($"QuickFIX config not found at: {fullPath}");
 

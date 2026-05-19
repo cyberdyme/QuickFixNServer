@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using FixAcceptor.Infrastructure;
 
 namespace FixAcceptor.Services;
 
@@ -10,9 +12,9 @@ namespace FixAcceptor.Services;
 /// </summary>
 public class MarketDataPublisher : BackgroundService
 {
-    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
     private const decimal MaxWalkStep = 0.10m;
 
+    private readonly TimeSpan _tickInterval;
     private readonly IMarketDataSubscriptions _subscriptions;
     private readonly ISecurityUniverse _universe;
     private readonly IFixMessageSender _sender;
@@ -24,17 +26,19 @@ public class MarketDataPublisher : BackgroundService
         IMarketDataSubscriptions subscriptions,
         ISecurityUniverse universe,
         IFixMessageSender sender,
+        IOptions<FixAcceptorOptions> options,
         ILogger<MarketDataPublisher> logger)
     {
         _subscriptions = subscriptions;
         _universe = universe;
         _sender = sender;
         _logger = logger;
+        _tickInterval = TimeSpan.FromSeconds(options.Value.MarketDataTickIntervalSeconds);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("MarketDataPublisher started — tick interval {Interval}", TickInterval);
+        _logger.LogInformation("MarketDataPublisher started — tick interval {Interval}", _tickInterval);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -49,7 +53,7 @@ public class MarketDataPublisher : BackgroundService
 
             try
             {
-                await Task.Delay(TickInterval, stoppingToken);
+                await Task.Delay(_tickInterval, stoppingToken);
             }
             catch (OperationCanceledException)
             {

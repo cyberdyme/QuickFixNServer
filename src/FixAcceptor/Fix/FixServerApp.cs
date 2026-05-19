@@ -8,15 +8,21 @@ namespace FixAcceptor.Fix;
 public class FixServerApp : MessageCracker, IApplication
 {
     private readonly IFixMessageHandler _handler;
+    private readonly IMarketDataHandler _marketDataHandler;
+    private readonly IMarketDataSubscriptions _marketDataSubscriptions;
     private readonly ISessionRegistry _sessionRegistry;
     private readonly ILogger<FixServerApp> _logger;
 
     public FixServerApp(
         IFixMessageHandler handler,
+        IMarketDataHandler marketDataHandler,
+        IMarketDataSubscriptions marketDataSubscriptions,
         ISessionRegistry sessionRegistry,
         ILogger<FixServerApp> logger)
     {
         _handler = handler;
+        _marketDataHandler = marketDataHandler;
+        _marketDataSubscriptions = marketDataSubscriptions;
         _sessionRegistry = sessionRegistry;
         _logger = logger;
     }
@@ -36,6 +42,13 @@ public class FixServerApp : MessageCracker, IApplication
     {
         _logger.LogInformation("Logout: {SessionId}", sessionId);
         _sessionRegistry.Unregister(sessionId);
+        var removed = _marketDataSubscriptions.RemoveAllForSession(sessionId);
+        if (removed > 0)
+        {
+            _logger.LogInformation(
+                "Cleared {Count} market-data subscription(s) for {SessionId}",
+                removed, sessionId);
+        }
     }
 
     public void ToAdmin(Message message, SessionID sessionId)
@@ -133,6 +146,21 @@ public class FixServerApp : MessageCracker, IApplication
     public void OnMessage(QuickFix.FIX44.OrderStatusRequest request, SessionID sessionId)
     {
         _handler.HandleOrderStatusRequest(request, sessionId);
+    }
+
+    public void OnMessage(QuickFix.FIX44.MarketDataRequest request, SessionID sessionId)
+    {
+        _marketDataHandler.HandleMarketDataRequest(request, sessionId);
+    }
+
+    public void OnMessage(QuickFix.FIX44.SecurityListRequest request, SessionID sessionId)
+    {
+        _marketDataHandler.HandleSecurityListRequest(request, sessionId);
+    }
+
+    public void OnMessage(QuickFix.FIX44.TradingSessionStatusRequest request, SessionID sessionId)
+    {
+        _marketDataHandler.HandleTradingSessionStatusRequest(request, sessionId);
     }
 
     private void LogInboundLogon(Message message, SessionID sessionId)

@@ -17,10 +17,14 @@ builder.Services.AddSingleton<ISessionRegistry, SessionRegistry>();
 builder.Services.AddSingleton<IOrderBook, OrderBook>();
 builder.Services.AddSingleton<IFixMessageSender, QuickFixMessageSender>();
 builder.Services.AddSingleton<IFixMessageHandler, FixMessageHandler>();
+builder.Services.AddSingleton<ISecurityUniverse, SecurityUniverse>();
+builder.Services.AddSingleton<IMarketDataSubscriptions, MarketDataSubscriptions>();
+builder.Services.AddSingleton<IMarketDataHandler, MarketDataHandler>();
 builder.Services.AddSingleton<IExecutionFileProcessor, ExecutionFileProcessor>();
 builder.Services.AddSingleton<FixServerApp>();
 builder.Services.AddHostedService<FixAcceptorHost>();
 builder.Services.AddHostedService<ExecutionFileWatcherService>();
+builder.Services.AddHostedService<MarketDataPublisher>();
 
 builder.Logging.AddSimpleConsole(options =>
 {

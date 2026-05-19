@@ -10,16 +10,22 @@ namespace FixAcceptor.Tests;
 public class FixServerAppTests
 {
     private readonly Mock<IFixMessageHandler> _handlerMock;
+    private readonly Mock<IMarketDataHandler> _marketDataHandlerMock;
+    private readonly Mock<IMarketDataSubscriptions> _marketDataSubscriptionsMock;
     private readonly Mock<ISessionRegistry> _sessionRegistryMock;
     private readonly FixServerApp _app;
 
     public FixServerAppTests()
     {
         _handlerMock = new Mock<IFixMessageHandler>();
+        _marketDataHandlerMock = new Mock<IMarketDataHandler>();
+        _marketDataSubscriptionsMock = new Mock<IMarketDataSubscriptions>();
         _sessionRegistryMock = new Mock<ISessionRegistry>();
         var loggerMock = new Mock<ILogger<FixServerApp>>();
         _app = new FixServerApp(
             _handlerMock.Object,
+            _marketDataHandlerMock.Object,
+            _marketDataSubscriptionsMock.Object,
             _sessionRegistryMock.Object,
             loggerMock.Object);
     }
@@ -71,6 +77,68 @@ public class FixServerAppTests
         _app.OnLogout(sessionId);
 
         _sessionRegistryMock.Verify(r => r.Unregister(sessionId), Times.Once);
+    }
+
+    [Fact]
+    public void OnLogout_ClearsMarketDataSubscriptionsForSession()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+
+        _app.OnLogout(sessionId);
+
+        _marketDataSubscriptionsMock.Verify(s => s.RemoveAllForSession(sessionId), Times.Once);
+    }
+
+    [Fact]
+    public void FromApp_WithMarketDataRequest_DelegatesToMarketDataHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var md = new QuickFix.FIX44.MarketDataRequest(
+            new MDReqID("R1"),
+            new SubscriptionRequestType('0'),
+            new MarketDepth(1));
+
+        _app.FromApp(md, sessionId);
+
+        _marketDataHandlerMock.Verify(
+            h => h.HandleMarketDataRequest(
+                It.Is<QuickFix.FIX44.MarketDataRequest>(m => m.MDReqID.Value == "R1"),
+                sessionId),
+            Times.Once);
+    }
+
+    [Fact]
+    public void FromApp_WithSecurityListRequest_DelegatesToMarketDataHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var req = new QuickFix.FIX44.SecurityListRequest(
+            new SecurityReqID("LIST1"),
+            new SecurityListRequestType(SecurityListRequestType.SYMBOL));
+
+        _app.FromApp(req, sessionId);
+
+        _marketDataHandlerMock.Verify(
+            h => h.HandleSecurityListRequest(
+                It.Is<QuickFix.FIX44.SecurityListRequest>(m => m.SecurityReqID.Value == "LIST1"),
+                sessionId),
+            Times.Once);
+    }
+
+    [Fact]
+    public void FromApp_WithTradingSessionStatusRequest_DelegatesToMarketDataHandler()
+    {
+        var sessionId = new SessionID("FIX.4.4", "SERVER", "CLIENT");
+        var req = new QuickFix.FIX44.TradingSessionStatusRequest(
+            new TradSesReqID("TSS1"),
+            new SubscriptionRequestType('0'));
+
+        _app.FromApp(req, sessionId);
+
+        _marketDataHandlerMock.Verify(
+            h => h.HandleTradingSessionStatusRequest(
+                It.Is<QuickFix.FIX44.TradingSessionStatusRequest>(m => m.TradSesReqID.Value == "TSS1"),
+                sessionId),
+            Times.Once);
     }
 
     [Theory]

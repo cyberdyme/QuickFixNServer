@@ -16,6 +16,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.Configure<FixAcceptorOptions>(
     builder.Configuration.GetSection(FixAcceptorOptions.SectionName));
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ISessionSettingsProvider, SessionSettingsProvider>();
 builder.Services.AddSingleton<ISessionRegistry, SessionRegistry>();
 builder.Services.AddSingleton<IOrderBook, OrderBook>();
